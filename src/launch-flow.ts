@@ -58,26 +58,29 @@ export class LaunchFlow {
     if (!nonEmpty(login.iss)) throw new LtiError('INVALID_LOGIN', 'login:iss');
     if (!nonEmpty(login.login_hint)) throw new LtiError('INVALID_LOGIN', 'login:login_hint');
     if (!nonEmpty(login.target_link_uri)) throw new LtiError('INVALID_LOGIN', 'login:target_link_uri');
-    if (login.client_id !== undefined && !nonEmpty(login.client_id)) {
+    // Some platforms send empty optional fields: an empty client_id or lti_deployment_id is absent.
+    const clientId = login.client_id === '' ? undefined : login.client_id;
+    const deploymentHint = login.lti_deployment_id === '' ? undefined : login.lti_deployment_id;
+    if (clientId !== undefined && !nonEmpty(clientId)) {
       throw new LtiError('INVALID_LOGIN', 'login:client_id');
     }
     if (login.lti_message_hint !== undefined && typeof login.lti_message_hint !== 'string') {
       throw new LtiError('INVALID_LOGIN', 'login:lti_message_hint');
     }
-    if (login.lti_deployment_id !== undefined && !nonEmpty(login.lti_deployment_id)) {
+    if (deploymentHint !== undefined && !nonEmpty(deploymentHint)) {
       throw new LtiError('INVALID_LOGIN', 'login:lti_deployment_id');
     }
     const registration = await this.registrations.select({
       issuer: login.iss, targetLinkUri: login.target_link_uri,
-      ...(login.client_id !== undefined && { clientId: login.client_id }),
-      ...(login.lti_deployment_id !== undefined && { deploymentHint: login.lti_deployment_id }),
+      ...(clientId !== undefined && { clientId }),
+      ...(deploymentHint !== undefined && { deploymentHint }),
     });
     const state = randomToken();
     const nonce = randomToken();
     await this.entries.putLaunch(state, {
       nonce, issuer: registration.issuer, clientId: registration.clientId,
       targetLinkUri: login.target_link_uri, expiresAt: Date.now() + initiationLifetimeMs,
-      ...(login.lti_deployment_id !== undefined ? { deploymentId: login.lti_deployment_id } : {}),
+      ...(deploymentHint !== undefined ? { deploymentId: deploymentHint } : {}),
     });
     const url = new URL(registration.authorizationEndpoint);
     url.searchParams.set('scope', 'openid');

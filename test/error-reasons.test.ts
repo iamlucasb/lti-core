@@ -117,9 +117,9 @@ test('login errors name the invalid initiation parameter, target, registration o
     [{ iss: '' }, 'login:iss'],
     [{ login_hint: undefined }, 'login:login_hint'],
     [{ target_link_uri: 42 }, 'login:target_link_uri'],
-    [{ client_id: '' }, 'login:client_id'],
+    [{ client_id: 42 }, 'login:client_id'],
     [{ lti_message_hint: 7 }, 'login:lti_message_hint'],
-    [{ lti_deployment_id: '' }, 'login:lti_deployment_id'],
+    [{ lti_deployment_id: 42 }, 'login:lti_deployment_id'],
   ];
   for (const [login, reason] of cases) {
     await assert.rejects(initiation(lti, login), failure('INVALID_LOGIN', reason));

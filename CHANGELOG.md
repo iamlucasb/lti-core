@@ -32,6 +32,7 @@ First open-source release. Migration: see `docs/integration.md` ("From 0.3.x to 
 
 ### Changed
 
+- Login initiation: an empty `client_id` or `lti_deployment_id` is treated as absent instead of failing with `INVALID_LOGIN` (some platforms send empty optional fields).
 - Tolerance policy: security and identity claims stay strict; descriptive claims are normalized or dropped instead of rejecting the launch:
   - `locale` and `launch_presentation.locale`: `_` is read as `-`, then a value that is not a BCP 47 tag is dropped;
   - mistyped optional text claims (`name`, `given_name`, `family_name`, `email`, titles, descriptions, `context.label`, `context.title`) are dropped;
