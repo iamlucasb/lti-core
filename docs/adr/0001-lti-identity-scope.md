@@ -1,0 +1,3 @@
+# Qualify the LTI identity by registration, without the deployment
+
+The same `sub` value can designate different people depending on the platform or the registration; the LTI identity is therefore qualified by `issuer`, `clientId` and `sub`, and is not the same thing as an application user. The `deploymentId` qualifies the integration of the launch, but does not split one identity across two deployments of the same registration. This choice avoids both accidentally merging different people and systematically duplicating a person whenever a new deployment is created; changing this key after users have been created would require migrating their associations.

@@ -1,0 +1,63 @@
+{
+  "name": "lti-core",
+  "version": "0.4.0",
+  "description": "Framework-agnostic LTI 1.3 tool library: OIDC launch, Deep Linking 2.0, JWKS",
+  "keywords": [
+    "lti",
+    "lti13",
+    "lti-advantage",
+    "deep-linking",
+    "oidc",
+    "jwks",
+    "edtech",
+    "lms"
+  ],
+  "author": "Lucas Bossard <contact@lucasbossard.dev>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iamlucasb/lti-core.git"
+  },
+  "homepage": "https://github.com/iamlucasb/lti-core#readme",
+  "bugs": {
+    "url": "https://github.com/iamlucasb/lti-core/issues"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepack": "npm run build",
+    "typecheck": "tsc --noEmit",
+    "test": "NODE_EXTRA_CA_CERTS=./test/fixtures/localhost-cert.pem node --import tsx --test test/*.test.ts",
+    "lint": "biome lint .",
+    "check:package": "publint && attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "jose": "^6.1.0"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@biomejs/biome": "^2.5.15",
+    "@types/node": "^22.0.0",
+    "publint": "^0.3.25",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}
