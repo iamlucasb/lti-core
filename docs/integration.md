@@ -159,7 +159,7 @@ const { url, state } = await tool.initiate({
 });
 ```
 
-`initiate` accepts the initiation parameters as received (GET query or POST form); every field is typed `unknown` and validated at runtime. `iss`, `login_hint` and `target_link_uri` are required non-empty strings; `client_id` and `lti_deployment_id`, when present, are strings; an empty value is treated as absent (some platforms send empty optional fields); `lti_message_hint`, when present, is a string. Passing `Object.fromEntries(params)` is fine.
+`initiate` accepts the initiation parameters as received (GET query or POST form); every field is typed `unknown` and validated at runtime. `iss`, `login_hint` and `target_link_uri` are required non-empty strings; `client_id` and `lti_deployment_id`, when present, are strings; an empty value of any of these three optional fields is treated as absent (some platforms send empty optional fields); `lti_message_hint`, when present, is a string. Passing `Object.fromEntries(params)` is fine.
 
 It selects the registration, generates a random `state` and `nonce` (32 bytes each, base64url), stores them for **five minutes**, and returns an `LtiAuthorizationRedirect`:
 

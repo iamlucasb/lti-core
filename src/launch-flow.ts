@@ -58,13 +58,14 @@ export class LaunchFlow {
     if (!nonEmpty(login.iss)) throw new LtiError('INVALID_LOGIN', 'login:iss');
     if (!nonEmpty(login.login_hint)) throw new LtiError('INVALID_LOGIN', 'login:login_hint');
     if (!nonEmpty(login.target_link_uri)) throw new LtiError('INVALID_LOGIN', 'login:target_link_uri');
-    // Some platforms send empty optional fields: an empty client_id or lti_deployment_id is absent.
+    // Some platforms send empty optional fields: an empty client_id, lti_message_hint or lti_deployment_id is absent.
     const clientId = login.client_id === '' ? undefined : login.client_id;
     const deploymentHint = login.lti_deployment_id === '' ? undefined : login.lti_deployment_id;
+    const messageHint = login.lti_message_hint === '' ? undefined : login.lti_message_hint;
     if (clientId !== undefined && !nonEmpty(clientId)) {
       throw new LtiError('INVALID_LOGIN', 'login:client_id');
     }
-    if (login.lti_message_hint !== undefined && typeof login.lti_message_hint !== 'string') {
+    if (messageHint !== undefined && typeof messageHint !== 'string') {
       throw new LtiError('INVALID_LOGIN', 'login:lti_message_hint');
     }
     if (deploymentHint !== undefined && !nonEmpty(deploymentHint)) {
@@ -92,7 +93,7 @@ export class LaunchFlow {
     url.searchParams.set('login_hint', login.login_hint);
     url.searchParams.set('state', state);
     url.searchParams.set('nonce', nonce);
-    if (login.lti_message_hint !== undefined) url.searchParams.set('lti_message_hint', login.lti_message_hint);
+    if (messageHint !== undefined) url.searchParams.set('lti_message_hint', messageHint);
     return { url: url.toString(), state };
   }
 

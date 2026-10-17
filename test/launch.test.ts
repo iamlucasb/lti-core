@@ -149,10 +149,11 @@ test('login rejects missing identifiers, an alien client and an unapproved targe
 test('empty optional login parameters are treated as absent', async () => {
   const lti = tool();
   const { url, state } = await lti.initiate({ iss: issuer, login_hint: 'hint', target_link_uri: target,
-    client_id: '', lti_deployment_id: '' });
+    client_id: '', lti_deployment_id: '', lti_message_hint: '' });
   const authorization = new URL(url);
   assert.equal(authorization.searchParams.get('client_id'), 'client-1');
   assert.equal(authorization.searchParams.has('lti_deployment_id'), false);
+  assert.equal(authorization.searchParams.has('lti_message_hint'), false);
   const launch = await lti.validate({ state,
     id_token: await sign(authorization.searchParams.get('nonce')!) });
   assert.equal(launch.platform.clientId, 'client-1');
