@@ -192,4 +192,4 @@ npm run check:package
 
 ## License
 
-[MIT](LICENSE) © Lucas Bossard
+[MIT](LICENSE) © [Lucas Bossard](https://lucasbossard.com)
