@@ -3,6 +3,8 @@
 Framework-agnostic TypeScript library for building LTI 1.3 tools: OIDC launch, Resource Link, Deep Linking 2.0 and tool JWKS.
 
 [![CI](https://github.com/iamlucasb/lti-core/actions/workflows/ci.yml/badge.svg)](https://github.com/iamlucasb/lti-core/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/lti-core)](https://www.npmjs.com/package/lti-core)
+[![license](https://img.shields.io/npm/l/lti-core)](LICENSE)
 
 ## Why
 
