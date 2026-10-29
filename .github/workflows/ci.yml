@@ -33,4 +33,4 @@ jobs:
           cd "$SMOKE_DIR"
           npm init -y >/dev/null
           npm install "$TARBALL"
-          node --input-type=module -e "import { createLtiTool } from 'lti-core'; if (typeof createLtiTool !== 'function') throw new Error('createLtiTool export missing'); console.log('smoke ok');"
+          node --input-type=module -e "import { createLtiTool, inspectPlatformJwks } from 'lti-core'; import { createTestPlatform } from 'lti-core/testing'; for (const f of [createLtiTool, inspectPlatformJwks, createTestPlatform]) if (typeof f !== 'function') throw new Error('export missing'); console.log('smoke ok');"

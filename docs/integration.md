@@ -15,6 +15,7 @@ This document is the consumer contract of `lti-core`: what the library does, wha
 - [Deep Linking](#deep-linking)
 - [Errors](#errors)
 - [Diagnostics](#diagnostics)
+- [Testing with a fake platform](#testing-with-a-fake-platform)
 - [Migration guides](#migration-guides)
 - [References](#references)
 
@@ -307,6 +308,42 @@ Platform key sets are fetched from `jwksUri` and cached per `LtiTool` instance, 
 
 Each instance fetches independently: several processes fetch the same JWKS once each.
 
+### Checking a platform JWKS
+
+Before a first launch, `inspectPlatformJwks` checks that a registration's `jwksUri` serves keys the tool can use. It fetches the JWKS the way launch validation does (one `GET`, redirects not followed, HTTP 200 only, same timeout) and summarizes it with the same key selection rules: a key is usable when a token with its `kid` and `RS256` selects it (`kty: 'RSA'`; `alg`, `use` and `key_ops` absent or compatible) and it imports as a public key of at least 2048 bits. It sends nothing but the request, needs no `LtiTool`, and returns counts and key IDs, never key material.
+
+```ts
+import { inspectPlatformJwks } from 'lti-core';
+
+const inspection = await inspectPlatformJwks(registration.jwksUri);
+if (!inspection.fetched) {
+  console.error(`platform JWKS: ${inspection.problem}`, inspection.httpStatus ?? '');
+} else if (inspection.usableKids.length === 0 || inspection.exposesPrivateKeyMembers) {
+  console.error(`platform JWKS: ${inspection.keyCount} key(s), none usable or a private key published`);
+}
+```
+
+```ts
+function inspectPlatformJwks(jwksUri: string, options?: {
+  timeoutMs?: number; // positive integer, defaults to 5 000 like jwks.timeoutMs
+  fetch?: (url: string, init: RequestInit) => Promise<Response>; // defaults to globalThis.fetch
+}): Promise<PlatformJwksInspection>;
+
+type PlatformJwksInspection =
+  | { fetched: true; keyCount: number; kids: readonly string[]; usableKids: readonly string[];
+      exposesPrivateKeyMembers: boolean }
+  | { fetched: false; problem: PlatformJwksProblem; httpStatus?: number };
+
+type PlatformJwksProblem = 'invalid_uri' | 'timeout' | 'unreachable' | 'http_status' | 'invalid_json' | 'invalid_jwks';
+```
+
+- `invalid_uri`: not an absolute HTTPS URL; no request is sent.
+- `http_status`: any status but 200, with `httpStatus`. A redirect (3xx) is reported here: launch validation does not follow it either.
+- `invalid_json`, `invalid_jwks`: the body is not JSON, or not an object with a `keys` array of objects.
+- `kids` lists every key ID; `usableKids` those that can verify an ID token; `exposesPrivateKeyMembers` is true when a key publishes `d`, `p`, `q`, `dp`, `dq`, `qi`, `oth` or `k` (such a key is never usable).
+
+A platform problem is returned, never thrown; invalid options throw `INVALID_CONFIGURATION` (`config:jwks`). A successful check does not prove that the platform signs its launches with one of these keys.
+
 ## Returned launch
 
 `validate` returns a read-only `LtiLaunch`:
@@ -573,6 +610,7 @@ Rules:
 - `tool.jwks()` returns `{ keys }`: the public key of the signing key, then `publicKeys`, each with `kid`, `alg: 'RS256'` and `use: 'sig'`. `kid` values must be unique, and a rotation key holding a private member (`d`, `p`, `q`...) is refused. The result is frozen.
 - Serve that JSON on a public route, for example `/.well-known/jwks.json`, and declare its URL in the platform.
 - Without `toolKeys`, deep linking requests are still validated, but `jwks()` and `createDeepLinkingResponse` throw `INVALID_CONFIGURATION` (`config:toolKeys_missing`).
+- Keep the key and its `kid` stable across restarts and instances: platforms cache the tool's JWKS, so a key generated at startup breaks the responses signed after a restart until their cache expires. Store it where your application keeps its secrets (secret manager, file readable by the service only...); a stable `kid` can be derived from the public key with `calculateJwkThumbprint` (jose).
 
 #### From PEM files
 
@@ -718,7 +756,90 @@ The optional `onDiagnostic` callback receives only normalized operational events
 
 Raw network, store and jose errors are never exposed. An exception thrown by the callback never changes the result of authentication.
 
+## Testing with a fake platform
+
+`lti-core/testing` exports `createTestPlatform`, a fake LTI 1.3 platform for your application's tests. It plays the platform side of the OIDC launch and of Deep Linking with a throwaway RS256 key, serves its JWKS through a `fetch` stub, and reads your tool's Deep Linking responses as a platform would. Nothing leaves the process. It is test support, not a platform implementation: never use it in production.
+
+```ts
+import { exportJWK, generateKeyPair } from 'jose';
+import { createLtiTool, MemoryOneTimeStore } from 'lti-core';
+import { createTestPlatform } from 'lti-core/testing';
+
+const platform = await createTestPlatform({ targetLinkUri: 'https://tool.example/lti/launch' });
+const restoreFetch = platform.installFetch(); // serves platform.jwksUri; call restoreFetch() after the tests
+
+// A throwaway tool key: the library never generates the tool's key, even for tests.
+const { privateKey, publicKey } = await generateKeyPair('RS256');
+const { n, e } = await exportJWK(publicKey);
+if (n === undefined || e === undefined) throw new Error('Not an RSA key');
+const tool = createLtiTool({
+  resolver: { async resolve(issuer) { return issuer === platform.issuer ? [platform.registration()] : []; } },
+  redirectUri: platform.redirectUri,
+  store: new MemoryOneTimeStore(),
+  toolKeys: { signing: { kid: 'test-tool', privateKey, publicJwk: { kty: 'RSA', n, e } } },
+});
+
+// Resource link launch: login, authorization request, form_post back to the tool.
+const { url } = await tool.initiate(platform.loginRequest());
+const launch = await tool.validate(await platform.authorize(url, { subject: 'user-17' }));
+
+// Deep linking request, then the platform reads the tool's response.
+const request = await tool.validate(await platform.authorize((await tool.initiate(platform.loginRequest())).url,
+  { messageType: 'LtiDeepLinkingRequest', deepLinking: { data: 'opaque' } }));
+if (request.messageType === 'LtiDeepLinkingRequest') {
+  const response = await tool.createDeepLinkingResponse(request.deepLinking.responseToken,
+    [{ type: 'ltiResourceLink', custom: { lesson: '7' } }]);
+  const { contentItems } = await platform.readDeepLinkingResponse(response, tool.jwks());
+}
+```
+
+In your own tests, drive your HTTP routes instead of `tool`: post `platform.loginRequest()` to your login route, pass the `Location` it answers to `platform.authorize`, and post the returned form (`state`, `id_token`) to your launch route.
+
+### Options
+
+`createTestPlatform(options: TestPlatformOptions): Promise<TestPlatform>`. All URLs are absolute HTTPS URLs; an invalid one throws a `TypeError`.
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `targetLinkUri` | required | Tool launch URL: `target_link_uri` of logins and launches, and `allowedTargetLinkUris` of `registration()`. |
+| `redirectUri` | `targetLinkUri` | Redirect URI registered for the tool; `authorize` refuses any other. |
+| `issuer` | `https://platform.test` | |
+| `clientId` | `test-client` | |
+| `deploymentId` | `test-deployment` | `deployment_id` claim and `lti_deployment_id` login parameter. `null` plays a platform that omits them ([ADR 0002](adr/0002-optional-deployment-id.md)); `registration()` then declares `deploymentIdRequired: false`. |
+| `authorizationEndpoint` | `<issuer>/authorize` | |
+| `jwksUri` | `<issuer>/jwks` | |
+| `deepLinkReturnUrl` | `<issuer>/deep-linking/return` | `deep_link_return_url` of deep linking requests. |
+| `roles` | `{ resourceLink: [Learner], deepLinking: [Instructor] }` | Roles sent per message type when a launch gives none (LIS v2 membership URIs). The default plays a platform that only grants Instructor in a deep linking request. |
+
+### Platform
+
+| Member | Behavior |
+| --- | --- |
+| `issuer`, `clientId`, `deploymentId`, `authorizationEndpoint`, `jwksUri`, `deepLinkReturnUrl`, `targetLinkUri`, `redirectUri` | Effective settings; `deploymentId` is `undefined` when omitted. |
+| `jwks` | Public JWKS of the platform (one RS256 key). |
+| `registration(overrides?)` | The `Registration` to return from your resolver; `overrides` replace its fields. |
+| `loginRequest({ targetLinkUri?, loginHint?, messageHint? })` | The OIDC third-party initiation fields (`iss`, `login_hint`, `target_link_uri`, `client_id`, `lti_deployment_id`, `lti_message_hint`). |
+| `respond(url)` | A `Response` with the JWKS for `jwksUri`, `undefined` for any other URL: to build your own `fetch` stub. |
+| `installFetch()` | Replaces `globalThis.fetch`: `jwksUri` is answered locally, other URLs go to the previous `fetch`. Returns the restore function; restore in reverse order of installation. Platforms sharing a `jwksUri` shadow each other: give them distinct issuers. |
+| `authorize(authorizationUrl, launch?)` | Checks the authorization request (endpoint, `scope=openid`, `response_type=id_token`, `response_mode=form_post`, `prompt=none`, `client_id`, `redirect_uri`, `login_hint`, `state`, `nonce`), then returns the form `{ state, id_token }` with an ID token valid for five minutes. |
+| `readDeepLinkingResponse(response, toolJwks)` | Checks the return URL, the RS256 signature against the tool JWKS, `iss` (client ID), `aud` (issuer), `exp`, `iat`, `nonce`, `version`, `message_type` and `deployment_id` (the one it sent, or none); returns `{ kid, claims, contentItems }`. |
+
+`authorize` and `readDeepLinkingResponse` throw an `Error` whose message starts with `Test platform:` when the tool's message would be refused by a platform.
+
+A launch (`TestLaunch`) accepts:
+
+- `messageType`: `LtiResourceLinkRequest` (default) or `LtiDeepLinkingRequest`;
+- `subject` (`sub`, default `test-user`), `roles`, `resourceLinkId` (default `test-resource-link`);
+- `deepLinking`: `acceptTypes` (default `['ltiResourceLink']`), `acceptPresentationDocumentTargets` (default `['iframe', 'window']`), `acceptMultiple` and `data` (sent only when given);
+- `claims`: raw claims merged last, to add `context`, `custom`, `name`... or forge an invalid token. A claim set to `undefined` is removed, for example `{ 'https://purl.imsglobal.org/spec/lti/claim/roles': undefined }`.
+
+A token signed by another platform is obtained with a second `createTestPlatform` whose fetch stub is not installed.
+
 ## Migration guides
+
+### From 0.4.x to 0.5.0
+
+No breaking change. New: `inspectPlatformJwks` (see [Checking a platform JWKS](#checking-a-platform-jwks)) and the `lti-core/testing` entry point (see [Testing with a fake platform](#testing-with-a-fake-platform)).
 
 ### From 0.3.x to 0.4.0
 

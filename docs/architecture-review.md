@@ -47,6 +47,12 @@ src/tool-keys.ts
 ├── tool keys and public JWKS
 └── JOSE signing of tool messages
 
+src/platform-jwks-inspection.ts
+└── platform JWKS check: fetch and key summary
+
+src/testing.ts
+└── fake platform for consumers' tests (`lti-core/testing`)
+
 src/random.ts
 └── random tokens with Web Crypto
 
@@ -54,7 +60,7 @@ src/validation.ts
 └── shared validation primitives
 ```
 
-The package only exposes `src/index.ts`. The other modules are internal.
+The package exposes `src/index.ts` (`lti-core`) and `src/testing.ts` (`lti-core/testing`). The other modules are internal.
 
 ## Main decisions
 
@@ -90,7 +96,7 @@ Internal modules throw `LtiError` directly. Dependency errors (JOSE, network, st
 
 ### Isolated JOSE dependency
 
-JWKS retrieval, caching and translation of cryptographic errors are concentrated in `token-verifier.ts`. Signing of tool messages is concentrated in `tool-keys.ts`, which keeps the private key in a private field. Claim parsing does not depend on JOSE directly.
+JWKS retrieval, caching and translation of cryptographic errors are concentrated in `token-verifier.ts`. Signing of tool messages is concentrated in `tool-keys.ts`, which keeps the private key in a private field. Claim parsing does not depend on JOSE directly. `platform-jwks-inspection.ts` reuses the JOSE remote and local key sets, so that its verdict on a platform JWKS follows the same fetch and key selection rules as launch validation instead of a copy of them.
 
 ### Deep Linking response backed by the one-time store
 
@@ -100,13 +106,17 @@ The validated request is stored in the `OneTimeStore` and referenced by an opaqu
 
 The core depends on no inbound HTTP framework and owns neither routes nor sessions. It nevertheless performs the outbound HTTPS requests required to resolve JWKS.
 
+### Test support in its own entry point
+
+The fake platform that consumers need for their tests is published as `lti-core/testing`, generic and configured by documented options, so that production imports never load it. It generates the platform key, never the tool's. See [ADR 0004](adr/0004-testing-entry-point.md).
+
 ### Package verified as a product
 
 `prepack` rebuilds `dist`. Changes to the public surface must be verified from an installed tarball, because tests importing `src` do not prove that the published package is usable.
 
 ## Deliberately retained choices
 
-- public interface limited to `initiate`, `validate`, `createDeepLinkingResponse` and `jwks`;
+- tool interface limited to `initiate`, `validate`, `createDeepLinkingResponse` and `jwks`, plus the standalone `inspectPlatformJwks` check;
 - Resource Link, Deep Linking 2.0 (`ltiResourceLink`) and RS256 only;
 - no NRPS, AGS or Dynamic Registration extension without an explicit request;
 - no user model, application role or application permission;

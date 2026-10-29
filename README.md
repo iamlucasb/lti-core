@@ -22,13 +22,15 @@ Supported:
 - LTI 1.3 Core: OIDC third-party initiation and launch validation for `LtiResourceLinkRequest`;
 - LTI Deep Linking 2.0: `LtiDeepLinkingRequest` validation and signed `LtiDeepLinkingResponse`, with `ltiResourceLink` Content Items;
 - platform keys resolved from their JWKS URL, with key rotation; tool keys provided by your application and published as a JWKS;
+- a platform JWKS check before a first launch (`inspectPlatformJwks`);
+- a fake platform for your tests (`lti-core/testing`);
 - RS256 only.
 
 Not supported (non-goals for now):
 
 - Assignment and Grade Services (AGS), Names and Role Provisioning Services (NRPS), Dynamic Registration;
 - Content Item types other than `ltiResourceLink`;
-- the platform (LMS) side of LTI;
+- the platform (LMS) side of LTI, beyond the fake platform of `lti-core/testing`;
 - LTI 1.1.
 
 Claims the library does not interpret (AGS and NRPS endpoints, `tool_platform`, vendor extensions...) remain available, signed but not validated, in `launch.claims`.
@@ -147,6 +149,22 @@ const { returnUrl, jwt } = await tool.createDeepLinkingResponse(launch.deepLinki
 
 The library never decides who may configure content: check `launch.normalizedRoles` (or `launch.roles`) against your own policy before showing the content picker. Private keys can also be given as a private RSA JWK or a Web Crypto `CryptoKey`; see the [integration guide](docs/integration.md#deep-linking).
 
+## Testing
+
+`lti-core/testing` provides a fake LTI 1.3 platform for your tests: it serves its JWKS through a `fetch` stub, signs launches and deep linking requests, and reads your Deep Linking responses as a platform would. Platform behaviors are options, for example `deploymentId: null` for a platform that omits `deployment_id`.
+
+```ts
+import { createTestPlatform } from 'lti-core/testing';
+
+const platform = await createTestPlatform({ targetLinkUri: 'https://tool.example/lti/launch' });
+const restoreFetch = platform.installFetch();
+// resolver: issuer === platform.issuer ? [platform.registration()] : []
+const { url } = await tool.initiate(platform.loginRequest());
+const launch = await tool.validate(await platform.authorize(url, { subject: 'user-17' }));
+```
+
+See [Testing with a fake platform](docs/integration.md#testing-with-a-fake-platform).
+
 ## Production checklist
 
 - **Use a shared, atomic `OneTimeStore`.** `MemoryOneTimeStore` only works within a single process. In production, `put` must be create-only with an expiry and `take` must atomically delete and return, across all instances:
@@ -155,6 +173,8 @@ The library never decides who may configure content: check `launch.normalizedRol
 
   Eventually consistent key-value stores (for example Cloudflare Workers KV) are **not** suitable: they cannot guarantee single use. See the [store contract and adapters](docs/integration.md#one-time-store).
 - **Bind `state` to the browser session.** `initiate` returns the `state`; store it (for example in an `HttpOnly`, `Secure` cookie) and compare it with the `state` posted back before calling `validate`. The library's store prevents replay; it does not replace this CSRF binding.
+- **Keep the tool key stable** across restarts and instances: platforms cache the tool's JWKS.
+- **Check each platform JWKS** before the first launch with `inspectPlatformJwks(registration.jwksUri)`.
 - **Keep one `LtiTool` instance** per process: it caches platform JWKS key sets.
 - **Rate limit the login and launch endpoints.** Each initiation writes to your store, and a token with an unknown `kid` can trigger a JWKS request to the platform.
 - **Handle errors by `code` and `reason`**, log them, and show the user a generic message. `LtiError` never contains values, keys, tokens, `state` or `nonce`, but there is no reason to expose details to the browser.
@@ -173,10 +193,10 @@ This project is not certified by 1EdTech. LTI® is a trademark of 1EdTech Consor
 
 ## Documentation
 
-- [Integration guide](docs/integration.md): configuration reference, store contract, launch shape, tolerance policy, roles, Deep Linking, tool keys, errors, migration guides
+- [Integration guide](docs/integration.md): configuration reference, store contract, launch shape, tolerance policy, roles, Deep Linking, tool keys, platform JWKS check, testing, errors, migration guides
 - [Changelog](CHANGELOG.md)
 - [Glossary](CONTEXT.md)
-- Architecture decisions: [LTI identity](docs/adr/0001-lti-identity-scope.md), [optional `deployment_id`](docs/adr/0002-optional-deployment-id.md), [Deep Linking response token](docs/adr/0003-deep-linking-response-token.md), [architecture review](docs/architecture-review.md)
+- Architecture decisions: [LTI identity](docs/adr/0001-lti-identity-scope.md), [optional `deployment_id`](docs/adr/0002-optional-deployment-id.md), [Deep Linking response token](docs/adr/0003-deep-linking-response-token.md), [testing entry point](docs/adr/0004-testing-entry-point.md), [architecture review](docs/architecture-review.md)
 - [Security policy](SECURITY.md) and [contributing guide](CONTRIBUTING.md)
 
 ## Development

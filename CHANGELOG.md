@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented in this file.
 
+## 0.5.0 (unreleased)
+
+No breaking change.
+
+### Added
+
+- `inspectPlatformJwks(jwksUri, options?)`: fetches a platform JWKS the way launch validation does (one `GET`, redirects not followed, HTTP 200 only, same 5 000 ms default timeout) and returns its key count, key IDs, the key IDs usable for an RS256 ID token under the launch key selection rules, and whether a key publishes private members. Platform problems are returned (`invalid_uri`, `timeout`, `unreachable`, `http_status` with the status, `invalid_json`, `invalid_jwks`), never thrown; no key material is returned. New types `PlatformJwksInspection`, `PlatformJwksInspectionOptions`, `PlatformJwksProblem`, `PlatformJwksSummary`, `PlatformJwksFailure`.
+- `lti-core/testing` entry point with `createTestPlatform(options)`: a generic fake LTI 1.3 platform for consumers' tests. It serves its JWKS through a `fetch` stub (`installFetch`, `respond`), provides the matching `registration()` and `loginRequest()`, checks the tool's authorization request and signs ID tokens for resource link launches and deep linking requests (`authorize`), and verifies the tool's Deep Linking response like a platform (`readDeepLinkingResponse`). Platform behaviors are documented options: `deploymentId: null` for a platform that omits `deployment_id`, `roles` per message type (default: Learner in resource link launches, Instructor in deep linking requests). Uses `jose` and Web Crypto only; never generates the tool's key. ADR 0004.
+
+### Documentation
+
+- Integration guide: "Checking a platform JWKS", "Testing with a fake platform", and why the tool key must stay stable across restarts.
+
 ## 0.4.0
 
 First open-source release. Migration: see `docs/integration.md` ("From 0.3.x to 0.4.0").

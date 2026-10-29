@@ -6,9 +6,12 @@ Read this document before adding or moving a source file, changing a public cont
 
 ```text
 src/index.ts
-├── single public entry point
+├── main public entry point (`lti-core`)
 ├── LtiTool and LtiToolConfig contracts
 └── configuration validation and module assembly
+
+src/testing.ts
+└── test entry point (`lti-core/testing`): generic fake platform for consumers' tests (ADR 0004)
 
 src/launch-flow.ts
 ├── OIDC initiation and authorization redirect
@@ -55,6 +58,9 @@ src/tool-keys.ts
 ├── public tool JWKS
 └── JOSE signing of tool messages
 
+src/platform-jwks-inspection.ts
+└── platform JWKS check before a first launch: fetch and key summary with the launch validation rules
+
 src/random.ts
 └── cryptographically random tokens (state, nonce, response tokens) with Web Crypto
 
@@ -83,7 +89,7 @@ test/fixtures/
 
 ## Public API
 
-- `src/index.ts` is the package's only export surface.
+- `src/index.ts` (`lti-core`) and `src/testing.ts` (`lti-core/testing`) are the package's only export surfaces. Test support goes in `src/testing.ts`, never in the main entry; `src/index.ts` never imports it.
 - A public type may be defined by its owning module, then explicitly re-exported from `src/index.ts`.
 - Before exporting, check that the consumer needs it and that it reveals neither an internal workflow nor an internal persistence model.
 - Preserve runtime-validated constraints in public types.

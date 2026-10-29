@@ -9,6 +9,7 @@ import { OneTimeEntries } from './one-time-store.js';
 import type { OneTimeStore } from './one-time-store.js';
 import { RegistrationDirectory } from './registrations.js';
 import type { RegistrationResolver } from './registrations.js';
+import { defaultJwksTimeoutMs } from './token-verifier.js';
 import type { TokenVerifierOptions } from './token-verifier.js';
 import { ToolKeyring } from './tool-keys.js';
 import type { LtiJwks, ToolKeys } from './tool-keys.js';
@@ -28,10 +29,13 @@ export type { Registration, RegistrationResolver } from './registrations.js';
 export { MemoryOneTimeStore } from './one-time-store.js';
 export type { OneTimeStore } from './one-time-store.js';
 export type { LaunchResponse, LoginRequest, LtiAuthorizationRedirect } from './launch-flow.js';
+export { inspectPlatformJwks } from './platform-jwks-inspection.js';
+export type {
+  PlatformJwksFailure, PlatformJwksInspection, PlatformJwksInspectionOptions, PlatformJwksProblem, PlatformJwksSummary,
+} from './platform-jwks-inspection.js';
 
 const defaultDeepLinkingResponseLifetimeMs = 60 * 60_000;
 const defaultClockToleranceSeconds = 5;
-const defaultJwksTimeoutMs = 5_000;
 const defaultJwksCooldownMs = 30_000;
 const defaultJwksCacheMaxAgeMs = 10 * 60_000;
 

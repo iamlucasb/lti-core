@@ -8,6 +8,9 @@ interface VerificationRegistration {
   readonly jwksUri: string;
 }
 
+/** Default timeout of a platform JWKS request, in milliseconds. */
+export const defaultJwksTimeoutMs = 5_000;
+
 /** Validated verification settings; defaults are applied by createLtiTool. */
 export interface TokenVerifierOptions {
   /** Allowed clock skew, in seconds, for exp, nbf and iat. */
