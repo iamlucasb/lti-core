@@ -88,7 +88,14 @@ test('reports a timeout', async () => {
   const fetch: NonNullable<PlatformJwksInspectionOptions['fetch']> = (_url, init) => new Promise((_, reject) => {
     init.signal?.addEventListener('abort', () => reject(init.signal?.reason));
   });
-  assert.deepEqual(await inspectPlatformJwks(jwksUri, { fetch, timeoutMs: 20 }), { fetched: false, problem: 'timeout' });
+  // A real request keeps the event loop alive with its socket; this one has none, and the timeout timer
+  // does not hold the loop on Node 20 and 22.
+  const keepAlive = setInterval(() => undefined, 1_000);
+  try {
+    assert.deepEqual(await inspectPlatformJwks(jwksUri, { fetch, timeoutMs: 20 }), { fetched: false, problem: 'timeout' });
+  } finally {
+    clearInterval(keepAlive);
+  }
 });
 
 test('sends no request for a URI that is not an absolute HTTPS URL', async () => {
